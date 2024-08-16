@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://cdn.fl1nt.dev/GAGE1/ReDIZUKO73.jpg/raw" alt="Disclone Banner">
+  <img src="https://cdn.fl1nt.dev/GAGE1/kUREJElO87.png/raw" alt="Disclone Banner">
 </p>
 <p align="center"><small><i>Banner generated with FLUX.1-Pro</i></small></p>
 
