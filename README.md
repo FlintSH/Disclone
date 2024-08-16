@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="https://cdn.fl1nt.dev/GAGE1/ReDIZUKO73.jpg/raw" alt="Disclone Banner">
+  <img src="https://cdn.fl1nt.dev/GAGE1/ReDIZUKO73.jpg/raw" alt="Disclone Banner" width="600">
 </p>
 <p align="center"><small><i>Banner generated with FLUX.1-Pro</i></small></p>
 
-<h1 align="center">Disclone - Fine-tune OpenAI models with your Discord chat history</h1>
+<h2 align="center">Disclone - Fine-tune OpenAI models with your Discord chat history</h2>
 
 Disclone is a little script I made that helps you create a fine-tuning dataset for OpenAI models based on Discord chat logs.
 
