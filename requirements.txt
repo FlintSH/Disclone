@@ -1,0 +1,5 @@
+tiktoken
+openai
+click
+colorama
+rich
