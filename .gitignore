@@ -1,2 +1,4 @@
 .env
 .venv
+*.csv
+*.jsonl

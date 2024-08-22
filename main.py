@@ -2,7 +2,7 @@ import csv
 import json
 from datetime import datetime, timedelta, timezone
 import tiktoken
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 import concurrent.futures
 import threading
 import time
@@ -10,6 +10,10 @@ import os
 import click
 from colorama import init, Fore, Style
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
+from rich.console import Console
+from rich.live import Live
+from rich.panel import Panel
+from rich.text import Text
 
 init(autoreset=True)
 
@@ -145,6 +149,8 @@ class RateLimiter:
         self.requests_made = 0
         self.last_reset = time.time()
         self.lock = threading.Lock()
+        self.console = Console()
+        self.rate_limited = False
 
     def wait_if_needed(self, tokens):
         with self.lock:
@@ -154,19 +160,20 @@ class RateLimiter:
                 self.requests_made = 0
                 self.last_reset = current_time
 
-            while self.tokens_used + tokens > self.tpm_limit or self.requests_made + 1 > self.rpm_limit:
-                time.sleep(1)
-                current_time = time.time()
-                if current_time - self.last_reset >= 60:
-                    self.tokens_used = 0
-                    self.requests_made = 0
-                    self.last_reset = current_time
+            if self.tokens_used + tokens > self.tpm_limit or self.requests_made + 1 > self.rpm_limit:
+                self.rate_limited = True
+                while self.tokens_used + tokens > self.tpm_limit or self.requests_made + 1 > self.rpm_limit:
+                    time.sleep(1)
+                    current_time = time.time()
+                    if current_time - self.last_reset >= 60:
+                        self.tokens_used = 0
+                        self.requests_made = 0
+                        self.last_reset = current_time
+                self.rate_limited = False
 
             self.tokens_used += tokens
             self.requests_made += 1
-            
-# This rate limiter assumes you have a Tier 3 OpenAI API account. 
-# If you have a different rate limit for your account, you can adjust the tpm_limit and rpm_limit accordingly.
+
 rate_limiter = RateLimiter(tpm_limit=150000, rpm_limit=1000)
 
 def moderate_content(text):
@@ -182,6 +189,10 @@ def moderate_content(text):
                 return True
         
         return False
+    except RateLimitError:
+        rate_limiter.rate_limited = True
+        time.sleep(60)
+        return moderate_content(text)
     except Exception as e:
         click.echo(f"{Fore.YELLOW}Warning: Error during content moderation: {e}")
         return True
@@ -234,13 +245,36 @@ def main(csv_file, target_user, start_date, conversation_limit):
     click.echo(f"{Fore.GREEN}Step 3: Moderating content...")
     moderated_conversations = []
     flagged_count = 0
-    with Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
+    
+    console = Console()
+    progress = Progress(
+        TextColumn("[bold blue]{task.description}", justify="right"),
+        BarColumn(bar_width=None, complete_style="blue", finished_style="blue"),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeRemainingColumn(),
-    ) as progress:
-        moderate_task = progress.add_task("[cyan]Moderating conversations", total=len(conversations))
+        expand=True
+    )
+    moderate_task = progress.add_task("Moderating conversations", total=len(conversations))
+
+    rate_limited = False
+
+    def get_renderable():
+        if rate_limited:
+            progress.update(moderate_task, completed=progress.tasks[0].completed, style="yellow")
+            title = Text("Moderation Progress (Rate Limited)", style="yellow")
+        else:
+            progress.update(moderate_task, completed=progress.tasks[0].completed, style="blue")
+            title = Text("Moderation Progress", style="blue")
+        
+        panel = Panel(
+            progress,
+            title=title,
+            border_style="blue",
+            padding=(0, 1)
+        )
+        return panel
+
+    with Live(get_renderable(), console=console, refresh_per_second=4) as live:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_conversation = {executor.submit(moderate_conversation, conversation): conversation for conversation in conversations}
             for future in concurrent.futures.as_completed(future_to_conversation):
@@ -250,7 +284,12 @@ def main(csv_file, target_user, start_date, conversation_limit):
                 else:
                     flagged_count += 1
                 progress.update(moderate_task, advance=1)
-    click.echo(f"{Fore.GREEN}Content moderation completed.\n")
+                
+                if rate_limiter.rate_limited != rate_limited:
+                    rate_limited = rate_limiter.rate_limited
+                    live.update(get_renderable())
+
+    console.print(f"{Fore.GREEN}Content moderation completed.\n")
 
     click.echo(f"{Fore.GREEN}Step 4: Writing {len(moderated_conversations)} conversations to {output_file}...")
     with Progress(
