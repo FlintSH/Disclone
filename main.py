@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
+import re
 
 init(autoreset=True)
 
@@ -88,30 +89,50 @@ def parse_csv(file_path, start_date=None):
     
     return messages
 
+def clean_message_content(content):
+    # Remove mentions (e.g., <@123456789>)
+    content = re.sub(r'<@!?\d+>', '', content)
+    
+    # Remove links
+    content = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', content)
+    
+    # Remove extra whitespace
+    content = ' '.join(content.split())
+    
+    return content.strip()
+
 def create_conversation(messages, target_user, system_prompt, max_context_messages=3, max_context_time=timedelta(minutes=30)):
     conversations = []
     for i, message in enumerate(messages):
         if message['username'] == target_user:
             context = []
             j = i - 1
-            while j >= 0 and len(context) < max_context_messages - 1:
+            while j >= 0 and len(context) < max_context_messages:
                 if messages[j]['timestamp'] < message['timestamp'] - max_context_time:
                     break
                 context.insert(0, messages[j])
                 j -= 1
             
-            if len(context) == max_context_messages - 1:
-                conversation_messages = [{"role": "system", "content": system_prompt}] if system_prompt else []
-                for ctx_msg in context:
-                    role = "assistant" if ctx_msg['username'] == target_user else "user"
+            conversation_messages = [{"role": "system", "content": system_prompt}] if system_prompt else []
+            for ctx_msg in context:
+                role = "user"
+                cleaned_content = clean_message_content(ctx_msg['content'])
+                if cleaned_content:
                     conversation_messages.append({
                         "role": role,
-                        "content": f"{ctx_msg['username']}: {ctx_msg['content']}"
+                        "content": cleaned_content
                     })
+            
+            # Add the target user's message as the last (assistant) message
+            cleaned_content = clean_message_content(message['content'])
+            if cleaned_content:
                 conversation_messages.append({
                     "role": "assistant",
-                    "content": f"{target_user}: {message['content']}"
+                    "content": cleaned_content
                 })
+            
+            # Only add the conversation if it has at least one user message and one assistant message
+            if len(conversation_messages) > 2 and conversation_messages[-1]["role"] == "assistant":
                 conversations.append({"messages": conversation_messages})
     return conversations
 
@@ -182,6 +203,7 @@ def moderate_content(text):
     
     try:
         response = client.moderations.create(input=text)
+        
         category_scores = response.results[0].category_scores
         
         for category, score in category_scores.__dict__.items():
@@ -189,7 +211,7 @@ def moderate_content(text):
                 return True
         
         return False
-    except RateLimitError:
+    except RateLimitError as e:
         rate_limiter.rate_limited = True
         time.sleep(60)
         return moderate_content(text)
