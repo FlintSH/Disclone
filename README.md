@@ -27,7 +27,7 @@ It allows you to generate an AI version of a specific Discord user by processing
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/disclone.git
+   git clone https://github.com/FlintSH/disclone.git
    cd disclone
    ```
 
