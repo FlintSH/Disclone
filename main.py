@@ -48,7 +48,11 @@ def parse_csv(file_path, start_date=None):
             current_message = None
             for row in reader:
                 try:
-                    timestamp = datetime.fromisoformat(row[2].replace(" ", "T"))
+                    timestamp_str = row[2].replace(" ", "T")
+                    # Handle microseconds
+                    if '.' in timestamp_str:
+                        timestamp_str = re.sub(r'(\.\d{6})\d+', r'\1', timestamp_str)
+                    timestamp = datetime.fromisoformat(timestamp_str)
                     if start_date and not start_date.tzinfo:
                         start_date = start_date.replace(tzinfo=timezone.utc)
                     if not timestamp.tzinfo:
