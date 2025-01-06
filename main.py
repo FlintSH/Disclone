@@ -268,54 +268,65 @@ def main(csv_file, target_user, start_date, conversation_limit):
         conversations = conversations[:conversation_limit]
     click.echo(f"{Fore.GREEN}Conversations created successfully.\n")
 
-    click.echo(f"{Fore.GREEN}Step 3: Moderating content...")
-    moderated_conversations = []
-    flagged_count = 0
-    
-    console = Console()
-    progress = Progress(
-        TextColumn("[bold blue]{task.description}", justify="right"),
-        BarColumn(bar_width=None, complete_style="blue", finished_style="blue"),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TimeRemainingColumn(),
-        expand=True
+    skip_moderation = click.confirm(
+        f"\n{Fore.YELLOW}Would you like to skip content moderation? "
+        f"(NOT RECOMMENDED - OpenAI will automatically reject datasets containing any NSFW content)",
+        default=False
     )
-    moderate_task = progress.add_task("Moderating conversations", total=len(conversations))
 
-    rate_limited = False
+    flagged_count = 0
 
-    def get_renderable():
-        if rate_limited:
-            progress.update(moderate_task, completed=progress.tasks[0].completed, style="yellow")
-            title = Text("Moderation Progress (Rate Limited)", style="yellow")
-        else:
-            progress.update(moderate_task, completed=progress.tasks[0].completed, style="blue")
-            title = Text("Moderation Progress", style="blue")
+    if skip_moderation:
+        click.echo(f"\n{Fore.RED}Warning: Skipping moderation. Your dataset may be rejected by OpenAI if it contains any NSFW content. If this happens, rerun Disclone with moderation enabled to automatically prune all NSFW content.")
+        moderated_conversations = conversations
+    else:
+        click.echo(f"\n{Fore.GREEN}Step 3: Moderating content...")
+        moderated_conversations = []
         
-        panel = Panel(
-            progress,
-            title=title,
-            border_style="blue",
-            padding=(0, 1)
+        console = Console()
+        progress = Progress(
+            TextColumn("[bold blue]{task.description}", justify="right"),
+            BarColumn(bar_width=None, complete_style="blue", finished_style="blue"),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeRemainingColumn(),
+            expand=True
         )
-        return panel
+        moderate_task = progress.add_task("Moderating conversations", total=len(conversations))
 
-    with Live(get_renderable(), console=console, refresh_per_second=4) as live:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_conversation = {executor.submit(moderate_conversation, conversation): conversation for conversation in conversations}
-            for future in concurrent.futures.as_completed(future_to_conversation):
-                result = future.result()
-                if result:
-                    moderated_conversations.append(future_to_conversation[future])
-                else:
-                    flagged_count += 1
-                progress.update(moderate_task, advance=1)
-                
-                if rate_limiter.rate_limited != rate_limited:
-                    rate_limited = rate_limiter.rate_limited
-                    live.update(get_renderable())
+        rate_limited = False
 
-    console.print(f"{Fore.GREEN}Content moderation completed.\n")
+        def get_renderable():
+            if rate_limited:
+                progress.update(moderate_task, completed=progress.tasks[0].completed, style="yellow")
+                title = Text("Moderation Progress (Rate Limited)", style="yellow")
+            else:
+                progress.update(moderate_task, completed=progress.tasks[0].completed, style="blue")
+                title = Text("Moderation Progress", style="blue")
+            
+            panel = Panel(
+                progress,
+                title=title,
+                border_style="blue",
+                padding=(0, 1)
+            )
+            return panel
+
+        with Live(get_renderable(), console=console, refresh_per_second=4) as live:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_conversation = {executor.submit(moderate_conversation, conversation): conversation for conversation in conversations}
+                for future in concurrent.futures.as_completed(future_to_conversation):
+                    result = future.result()
+                    if result:
+                        moderated_conversations.append(future_to_conversation[future])
+                    else:
+                        flagged_count += 1
+                    progress.update(moderate_task, advance=1)
+                    
+                    if rate_limiter.rate_limited != rate_limited:
+                        rate_limited = rate_limiter.rate_limited
+                        live.update(get_renderable())
+
+        console.print(f"{Fore.GREEN}Content moderation completed.\n")
 
     click.echo(f"{Fore.GREEN}Step 4: Writing {len(moderated_conversations)} conversations to {output_file}...")
     with Progress(
@@ -353,4 +364,4 @@ if __name__ == "__main__":
         click.echo(f"\n{Fore.RED}Operation aborted.")
     except Exception as e:
         click.echo(f"\n{Fore.RED}An unexpected error occurred: {e}")
-        click.echo("If this issue persists, please report it to the developer.")
+        click.echo("If this issue persists, please report it @ https://github.com/FlintSH/Disclone/issues")
