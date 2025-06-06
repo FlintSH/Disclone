@@ -5,7 +5,7 @@
 
 <h2 align="center">Disclone - Fine-tune OpenAI models with your Discord chat history</h2>
 
-## As of June 2nd, 2025, this script no longer works.
+## As of June 2nd, 2025, this script no longer works, will fix.
 
 Disclone is a little script I made that helps you create a fine-tuning dataset for OpenAI models based on Discord chat logs.
 
