@@ -1,3 +1,5 @@
+
+
 <p align="center">
   <img src="https://cdn.fl1nt.dev/GAGE1/kUREJElO87.png/raw" alt="Disclone Banner">
 </p>
@@ -56,7 +58,7 @@ It allows you to generate an AI version of a specific Discord user by processing
    - Enter the path to your CSV file.
    - Specify the Discord username of the target user you want to clone.
    - Provide a system prompt to guide the AI's behavior (optional but recommended).
-   - Enter a start date if you want to process messages from a specific date onwards (optional).
+   - Enter a start date in `YYYY-MM-DD` format if you want to process messages from a specific date onwards (optional).
    - Set a limit on the number of conversations to include (optional).
 
 4. Wait for the script to process the data. It will:
